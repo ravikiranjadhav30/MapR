@@ -3,26 +3,22 @@ import folium
 from streamlit_folium import st_folium
 import os
 import rasterio
-from rasterio.plot import show
-from folium.raster_layers import ImageOverlay
-from rasterio import transform
 import numpy as np
 from PIL import Image
+from folium.raster_layers import ImageOverlay
 
 # ---------- CONFIG ----------
 st.set_page_config(page_title="GeoTIFF Map Viewer", layout="wide")
 
 DATA_DIR = "uploaded_tiffs"
-if not os.path.exists(DATA_DIR):
-    os.makedirs(DATA_DIR)
+os.makedirs(DATA_DIR, exist_ok=True)
 
 # ---------- APP TITLE ----------
 st.title("🗺️ Web-based GeoTIFF Map Application")
 
-# ---------- AUTHENTICATION ----------
+# ---------- ADMIN LOGIN ----------
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "12345"
-
 auth_status = st.session_state.get("authenticated", False)
 
 menu = ["Public Viewer", "Admin Login", "Logout"]
@@ -33,18 +29,19 @@ if choice == "Logout":
     st.session_state["authenticated"] = False
     st.success("You have been logged out.")
 
-# ---------- ADMIN LOGIN ----------
+# ---------- ADMIN PANEL ----------
 if choice == "Admin Login":
     if not auth_status:
         st.subheader("🔑 Admin Login")
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
+
         if st.button("Login"):
             if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
                 st.session_state["authenticated"] = True
-                st.success("Login successful ✅")
+                st.success("✅ Login successful!")
             else:
-                st.error("Invalid username or password")
+                st.error("❌ Invalid username or password")
     else:
         st.subheader("📤 Upload or Delete GeoTIFF Files")
 
@@ -68,6 +65,7 @@ if choice == "Admin Login":
 # ---------- PUBLIC VIEWER ----------
 if choice == "Public Viewer":
     st.subheader("🛰️ Public Map Viewer")
+
     m = folium.Map(location=[19.0, 75.0], zoom_start=6, tiles="OpenStreetMap")
 
     tif_files = [f for f in os.listdir(DATA_DIR) if f.endswith((".tif", ".tiff"))]
@@ -77,23 +75,27 @@ if choice == "Public Viewer":
 
         if selected_tif:
             file_path = os.path.join(DATA_DIR, selected_tif)
-            with rasterio.open(file_path) as src:
-                bounds = src.bounds
-                array = src.read(1)
-                array = np.nan_to_num(array)
-                norm = (array - array.min()) / (array.max() - array.min())
-                img = Image.fromarray(np.uint8(norm * 255))
-                img.save("temp.png")
+            if os.path.exists(file_path):
+                with rasterio.open(file_path) as src:
+                    bounds = src.bounds
+                    array = src.read(1)
+                    array = np.nan_to_num(array)
+                    norm = (array - array.min()) / (array.max() - array.min())
+                    img = Image.fromarray(np.uint8(norm * 255))
+                    img.save("temp.png")
 
-                img_overlay = ImageOverlay(
-                    name=selected_tif,
-                    image="temp.png",
-                    bounds=[[bounds.bottom, bounds.left], [bounds.top, bounds.right]],
-                    opacity=0.6,
-                )
-                img_overlay.add_to(m)
+                    img_overlay = ImageOverlay(
+                        name=selected_tif,
+                        image="temp.png",
+                        bounds=[[bounds.bottom, bounds.left],
+                                [bounds.top, bounds.right]],
+                        opacity=0.6,
+                    )
+                    img_overlay.add_to(m)
 
-            folium.LayerControl().add_to(m)
-            st_folium(m, width=900, height=600)
+                folium.LayerControl().add_to(m)
+                st_folium(m, width=900, height=600)
+            else:
+                st.error(f"⚠️ File not found: {file_path}")
     else:
         st.info("No GeoTIFF files available. Please upload via Admin Login.")
