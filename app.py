@@ -11,8 +11,8 @@ DATA_DIR = "uploaded_images"
 os.makedirs(DATA_DIR, exist_ok=True)
 
 # ---------- ADMIN CREDENTIALS ----------
-ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "12345"
+ADMIN_USERNAME = "Ravikiran"
+ADMIN_PASSWORD = "30111997"
 
 # ---------- APP STATE ----------
 auth_status = st.session_state.get("authenticated", False)
