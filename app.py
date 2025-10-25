@@ -4,6 +4,7 @@ from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
 import folium
 from streamlit_folium import st_folium
+import base64
 
 # ---------- CONFIG ----------
 st.set_page_config(page_title="GeoTagged Image Map", layout="wide")
@@ -39,7 +40,7 @@ def get_exif_data(image):
     return exif_data
 
 def get_gps_info(exif_data):
-    """Extract GPS coordinates"""
+    """Extract GPS coordinates in decimal format"""
     gps_info = {}
     if "GPSInfo" in exif_data:
         for key in exif_data["GPSInfo"].keys():
@@ -51,10 +52,19 @@ def get_gps_info(exif_data):
             if ref in ['S','W']:
                 decimal = -decimal
             return decimal
-        lat = convert_to_decimal(gps_info['GPSLatitude'], gps_info['GPSLatitudeRef'])
-        lon = convert_to_decimal(gps_info['GPSLongitude'], gps_info['GPSLongitudeRef'])
-        return lat, lon
+        try:
+            lat = convert_to_decimal(gps_info['GPSLatitude'], gps_info['GPSLatitudeRef'])
+            lon = convert_to_decimal(gps_info['GPSLongitude'], gps_info['GPSLongitudeRef'])
+            return lat, lon
+        except:
+            return None, None
     return None, None
+
+def image_to_base64(img_path):
+    """Convert image to base64 for embedding in HTML"""
+    with open(img_path, "rb") as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
 
 # ---------- ADMIN LOGIN ----------
 if choice == "Admin Login":
@@ -90,21 +100,29 @@ if choice == "Admin Login":
 # ---------- PUBLIC VIEWER ----------
 if choice == "Public Viewer":
     st.subheader("🛰️ GeoTagged Image Map")
-    files = [f for f in os.listdir(DATA_DIR) if f.endswith((".png",".jpg",".jpeg"))]
+    files = [f for f in os.listdir(DATA_DIR) if f.lower().endswith((".png",".jpg",".jpeg"))]
     m = folium.Map(location=[19.0, 75.0], zoom_start=6, tiles="OpenStreetMap")
 
     if files:
         for file in files:
             path = os.path.join(DATA_DIR, file)
-            img = Image.open(path)
-            exif_data = get_exif_data(img)
-            lat, lon = get_gps_info(exif_data)
-            if lat and lon:
-                folium.Marker(
-                    location=[lat, lon],
-                    popup=f"<b>{file}</b><br><img src='{path}' width='150'>",
-                    icon=folium.Icon(color='red', icon='camera')
-                ).add_to(m)
+            try:
+                img = Image.open(path)
+                exif_data = get_exif_data(img)
+                lat, lon = get_gps_info(exif_data)
+                if lat and lon:
+                    img_base64 = image_to_base64(path)
+                    html = f"""
+                    <b>{file}</b><br>
+                    <img src="data:image/jpeg;base64,{img_base64}" width="150">
+                    """
+                    folium.Marker(
+                        location=[lat, lon],
+                        popup=folium.Popup(html, max_width=200),
+                        icon=folium.Icon(color='red', icon='camera')
+                    ).add_to(m)
+            except Exception as e:
+                st.warning(f"Failed to process {file}: {e}")
         folium.LayerControl().add_to(m)
         st_folium(m, width=900, height=600)
     else:
